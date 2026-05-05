@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Purchase Insights Copilot</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2236;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #f0f4ff;
+    --muted: #8896b3;
+    --accent: #3b82f6;
+    --accent2: #6366f1;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --success: #10b981;
+    --red-glow: rgba(239,68,68,0.15);
+    --amber-glow: rgba(245,158,11,0.15);
+    --green-glow: rgba(16,185,129,0.12);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; }
+
+  /* header */
+  .header { padding:24px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .logo { display:flex; align-items:center; gap:12px; }
+  .logo-icon { width:36px; height:36px; background:linear-gradient(135deg,#3b82f6,#6366f1); border-radius:10px; display:flex; align-items:center; justify-content:center; }
+  .logo-icon svg { width:18px; height:18px; }
+  .logo-title { font-family:'Syne',sans-serif; font-size:18px; font-weight:700; letter-spacing:-0.02em; }
+  .logo-sub { font-size:11px; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; }
+  .hack-badge { background:linear-gradient(135deg,#f59e0b22,#ef444422); border:1px solid #f59e0b44; color:#f59e0b; font-size:11px; font-weight:600; padding:4px 12px; border-radius:20px; letter-spacing:0.05em; font-family:'Syne',sans-serif; }
+
+  /* upload zone */
+  .upload-wrap { max-width:760px; margin:60px auto; padding:0 24px; }
+  .upload-card { border:2px dashed var(--border2); border-radius:20px; padding:64px 40px; text-align:center; background:var(--surface); cursor:pointer; transition:all 0.25s; position:relative; overflow:hidden; }
+  .upload-card::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.06), transparent 70%); pointer-events:none; }
+  .upload-card:hover, .upload-card.drag { border-color:var(--accent2); background:var(--surface2); }
+  .upload-card:hover::before { background:radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.12), transparent 70%); }
+  .upload-icon { width:56px; height:56px; margin:0 auto 20px; background:rgba(99,102,241,0.12); border-radius:16px; display:flex; align-items:center; justify-content:center; }
+  .upload-title { font-family:'Syne',sans-serif; font-size:22px; font-weight:700; margin-bottom:8px; }
+  .upload-sub { color:var(--muted); font-size:14px; line-height:1.6; }
+  .format-pills { display:flex; gap:8px; justify-content:center; margin-top:20px; flex-wrap:wrap; }
+  .pill { font-size:11px; font-weight:600; padding:4px 12px; border-radius:20px; background:rgba(255,255,255,0.05); border:1px solid var(--border2); color:var(--muted); letter-spacing:0.05em; }
+  .pill.req { color:#a5b4fc; border-color:rgba(99,102,241,0.3); background:rgba(99,102,241,0.08); }
+  #file-input { display:none; }
+  .sample-btn { margin-top:24px; display:inline-block; font-size:13px; color:var(--accent); text-decoration:underline; cursor:pointer; background:none; border:none; }
+
+  /* column map modal */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:100; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+  .modal-overlay.show { display:flex; }
+  .modal { background:var(--surface); border:1px solid var(--border2); border-radius:20px; padding:32px; width:540px; max-width:95vw; max-height:90vh; overflow-y:auto; }
+  .modal h2 { font-family:'Syne',sans-serif; font-size:18px; margin-bottom:6px; }
+  .modal p { font-size:13px; color:var(--muted); margin-bottom:20px; }
+  .map-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:center; margin-bottom:10px; }
+  .map-label { font-size:13px; color:var(--text); display:flex; align-items:center; gap:6px; }
+  .req-dot { width:6px; height:6px; border-radius:50%; background:var(--warning); flex-shrink:0; }
+  .map-row select { width:100%; padding:8px 12px; border-radius:8px; border:1px solid var(--border2); background:var(--surface2); color:var(--text); font-size:13px; outline:none; }
+  .map-row select:focus { border-color:var(--accent2); }
+  .modal-actions { display:flex; gap:10px; margin-top:24px; }
+  .btn { padding:10px 24px; border-radius:10px; border:none; font-size:14px; font-weight:500; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.2s; }
+  .btn-primary { background:linear-gradient(135deg,#3b82f6,#6366f1); color:#fff; flex:2; }
+  .btn-primary:hover { opacity:0.9; transform:translateY(-1px); }
+  .btn-secondary { background:var(--surface2); color:var(--muted); border:1px solid var(--border2); flex:1; }
+
+  /* dashboard */
+  .dashboard { display:none; padding:24px 32px; max-width:1280px; margin:0 auto; }
+  .dashboard.show { display:block; }
+  .section-title { font-family:'Syne',sans-serif; font-size:13px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:16px; }
+
+  /* stat cards */
+  .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:28px; }
+  .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 20px; }
+  .stat-label { font-size:12px; color:var(--muted); margin-bottom:6px; letter-spacing:0.04em; }
+  .stat-value { font-family:'Syne',sans-serif; font-size:26px; font-weight:700; }
+  .stat-value.danger { color:var(--danger); }
+  .stat-value.warning { color:var(--warning); }
+  .stat-value.success { color:var(--success); }
+  .stat-sub { font-size:11px; color:var(--muted); margin-top:4px; }
+
+  /* filter bar */
+  .filter-bar { display:flex; gap:8px; align-items:center; margin-bottom:20px; flex-wrap:wrap; }
+  .filter-btn { padding:6px 16px; border-radius:20px; border:1px solid var(--border2); background:transparent; color:var(--muted); font-size:12px; font-weight:500; cursor:pointer; transition:all 0.2s; font-family:'DM Sans',sans-serif; }
+  .filter-btn.active { background:var(--accent2); border-color:var(--accent2); color:#fff; }
+  .search-box { margin-left:auto; padding:7px 14px; border-radius:20px; border:1px solid var(--border2); background:var(--surface2); color:var(--text); font-size:13px; outline:none; width:200px; font-family:'DM Sans',sans-serif; }
+  .search-box::placeholder { color:var(--muted); }
+
+  /* table */
+  .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; margin-bottom:28px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  thead tr { background:var(--surface2); border-bottom:1px solid var(--border2); }
+  th { padding:11px 14px; text-align:left; font-weight:500; color:var(--muted); font-size:12px; letter-spacing:0.04em; white-space:nowrap; cursor:pointer; user-select:none; }
+  th:hover { color:var(--text); }
+  tbody tr { border-bottom:1px solid var(--border); transition:background 0.15s; cursor:pointer; }
+  tbody tr:last-child { border-bottom:none; }
+  tbody tr:hover { background:var(--surface2); }
+  td { padding:11px 14px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px; }
+  .expand-row { background:var(--surface2) !important; border-bottom:1px solid var(--border2) !important; cursor:default !important; }
+  .expand-row:hover { background:var(--surface2) !important; }
+  .expand-inner { padding:16px; display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
+
+  /* badges */
+  .badge { display:inline-block; font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; letter-spacing:0.02em; }
+  .badge.critical { background:var(--red-glow); color:#fca5a5; border:1px solid rgba(239,68,68,0.3); }
+  .badge.high { background:var(--amber-glow); color:#fcd34d; border:1px solid rgba(245,158,11,0.3); }
+  .badge.moderate { background:rgba(245,158,11,0.08); color:#fde68a; border:1px solid rgba(245,158,11,0.2); }
+  .badge.stable { background:var(--green-glow); color:#6ee7b7; border:1px solid rgba(16,185,129,0.25); }
+
+  /* sparkline bars */
+  .spark { display:flex; align-items:flex-end; gap:2px; height:28px; }
+  .spark-b { width:7px; border-radius:2px 2px 0 0; background:var(--border2); }
+
+  /* mini month table */
+  .month-table { display:flex; gap:0; border:1px solid var(--border); border-radius:10px; overflow:hidden; flex:1; min-width:280px; }
+  .month-col { flex:1; text-align:center; border-right:1px solid var(--border); }
+  .month-col:last-child { border-right:none; }
+  .month-head { padding:6px 4px; font-size:11px; color:var(--muted); background:var(--surface); border-bottom:1px solid var(--border); }
+  .month-val { padding:8px 4px; font-size:13px; font-weight:500; }
+  .month-val.latest { color:var(--danger); }
+  .month-val.oldest { color:var(--success); }
+
+  /* AI panel */
+  .ai-panel { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px 24px; margin-bottom:28px; }
+  .ai-header { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .ai-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .ai-title { font-family:'Syne',sans-serif; font-size:15px; font-weight:600; }
+  .ai-content { font-size:14px; color:#c7d2f0; line-height:1.8; min-height:60px; }
+  .ai-content.loading { color:var(--muted); font-style:italic; }
+  .ai-actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  .ai-chip { padding:6px 14px; border-radius:20px; border:1px solid var(--border2); background:transparent; color:var(--muted); font-size:12px; cursor:pointer; transition:all 0.2s; font-family:'DM Sans',sans-serif; }
+  .ai-chip:hover { border-color:var(--accent2); color:#a5b4fc; }
+
+  /* chart area */
+  .chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:28px; }
+  .chart-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; }
+  .chart-card h3 { font-family:'Syne',sans-serif; font-size:14px; font-weight:600; margin-bottom:16px; color:var(--muted); letter-spacing:0.06em; text-transform:uppercase; font-size:12px; }
+  .chart-wrap { position:relative; height:200px; }
+  @media(max-width:700px) { .chart-grid { grid-template-columns:1fr; } .dashboard { padding:16px; } }
+
+  /* loading spinner */
+  .spinner { width:20px; height:20px; border:2px solid rgba(99,102,241,0.3); border-top-color:var(--accent2); border-radius:50%; animation:spin 0.8s linear infinite; display:inline-block; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .new-upload-btn { padding:8px 18px; border-radius:10px; border:1px solid var(--border2); background:var(--surface2); color:var(--muted); font-size:13px; cursor:pointer; transition:all 0.2s; font-family:'DM Sans',sans-serif; }
+  .new-upload-btn:hover { border-color:var(--accent2); color:var(--text); }
+
+  .empty { text-align:center; padding:40px; color:var(--muted); font-size:14px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 18 18" fill="none"><path d="M2 14l4-8 3 5 2-3 3 6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div>
+      <div class="logo-title">Purchase Insights Copilot</div>
+      <div class="logo-sub">AI-powered price hike detection</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button class="new-upload-btn" id="new-upload-btn" style="display:none" onclick="resetApp()">&#8593; Upload new file</button>
+    <div class="hack-badge">Hackathon MVP</div>
+  </div>
+</div>
+
+<!-- Upload Section -->
+<div class="upload-wrap" id="upload-section">
+  <div class="upload-card" id="drop-zone" onclick="document.getElementById('file-input').click()">
+    <div class="upload-icon">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M14 4v16M8 10l6-6 6 6" stroke="#a5b4fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 22h20" stroke="#a5b4fc" stroke-width="2" stroke-linecap="round"/></svg>
+    </div>
+    <div class="upload-title">Upload your Purchase Register</div>
+    <div class="upload-sub">
+      Drop a CSV or Excel file with purchase data across months.<br>
+      We'll automatically detect price hikes per item over 5 months.
+    </div>
+    <div class="format-pills">
+      <span class="pill req">Item Name / SKU</span>
+      <span class="pill req">Unit Price</span>
+      <span class="pill req">Date / Month</span>
+      <span class="pill">Supplier</span>
+      <span class="pill">Quantity</span>
+    </div>
+    <input type="file" id="file-input" accept=".csv,.xlsx,.xls">
+    <div style="margin-top:20px">
+      <button class="sample-btn" onclick="event.stopPropagation(); loadSampleData()">&#8594; Load sample data instead</button>
+    </div>
+  </div>
+</div>
+
+<!-- Column Mapping Modal -->
+<div class="modal-overlay" id="map-modal">
+  <div class="modal">
+    <h2>Map your columns</h2>
+    <p>Tell us which column in your file maps to each field. We've auto-detected where possible.</p>
+    <div id="map-fields"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="processMapping()">Analyse &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div class="dashboard" id="dashboard">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;">Price Hike Analysis</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:2px;" id="file-meta">—</div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" id="stats-grid"></div>
+
+  <!-- AI Insights -->
+  <div class="section-title">AI Copilot Insights</div>
+  <div class="ai-panel">
+    <div class="ai-header">
+      <div class="ai-dot"></div>
+      <div class="ai-title">Copilot Analysis</div>
+      <div class="spinner" id="ai-spinner" style="display:none;margin-left:8px;"></div>
+    </div>
+    <div class="ai-content" id="ai-content">Analysing your purchase data...</div>
+    <div class="ai-actions" id="ai-chips"></div>
+  </div>
+
+  <!-- Charts -->
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>Top hikes by % change</h3>
+      <div class="chart-wrap"><canvas id="chart-bar"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Hike severity breakdown</h3>
+      <div class="chart-wrap"><canvas id="chart-pie"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="section-title">Item-level price hike report</div>
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+    <button class="filter-btn" onclick="setFilter('critical',this)">Critical &gt;20%</button>
+    <button class="filter-btn" onclick="setFilter('high',this)">High 10–20%</button>
+    <button class="filter-btn" onclick="setFilter('moderate',this)">Moderate 5–10%</button>
+    <button class="filter-btn" onclick="setFilter('stable',this)">Stable &lt;5%</button>
+    <input class="search-box" placeholder="Search item..." id="search-box" oninput="applyFilters()">
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th onclick="sortBy('name')">Item &#8597;</th>
+          <th onclick="sortBy('supplier')">Supplier &#8597;</th>
+          <th onclick="sortBy('latest')" title="Most recent month price">Latest price &#8597;</th>
+          <th onclick="sortBy('minPrice')" title="Lowest price across 5 months">Old price (min) &#8597;</th>
+          <th onclick="sortBy('pct')" title="Hike from min to latest">Hike % &#8597;</th>
+          <th>5-month trend</th>
+          <th>Severity</th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+let rawData = [];
+let detectedHeaders = [];
+let columnMap = {};
+let analysedItems = [];
+let currentFilter = 'all';
+let sortKey = 'pct';
+let sortDir = -1;
+let expandedRow = null;
+let barChart = null;
+let pieChart = null;
+
+const REQUIRED = ['item','price','date'];
+const FIELD_ALIASES = {
+  item: ['item','item name','product','product name','description','desc','sku','material','name','item_name','part'],
+  price: ['price','unit price','rate','cost','amount','unit_price','unit cost','rate (inr)','unit rate','per unit','value'],
+  date: ['date','month','invoice date','inv date','period','purchase date','po date','transaction date','month/year'],
+  supplier: ['supplier','vendor','vendor name','supplier name','party','party name','from'],
+  qty: ['qty','quantity','units','pcs','nos','number'],
+};
+
+function detectColumns(headers) {
+  const map = {};
+  const low = headers.map(h => h.toLowerCase().trim());
+  for (const [field, aliases] of Object.entries(FIELD_ALIASES)) {
+    const idx = low.findIndex(h => aliases.some(a => h.includes(a)));
+    if (idx >= 0) map[field] = headers[idx];
+  }
+  return map;
+}
+
+function getSeverity(pct) {
+  if (pct >= 20) return 'critical';
+  if (pct >= 10) return 'high';
+  if (pct >= 5) return 'moderate';
+  return 'stable';
+}
+
+function fmtNum(n) { return n == null ? '—' : '₹' + Number(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function fmtPct(n) { if (n == null) return '—'; const s = n >= 0 ? '+' : ''; return s + n.toFixed(1) + '%'; }
+
+// ── file handling ──────────────────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', e => handleFile(e.target.files[0]));
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
+
+function handleFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    Papa.parse(file, { header: true, skipEmptyLines: true, complete: r => openModal(r.data, r.meta.fields, file.name) });
+  } else if (['xlsx','xls'].includes(ext)) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(e.target.result, { type:'array', cellDates:true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { defval:'' });
+      const headers = data.length ? Object.keys(data[0]) : [];
+      openModal(data, headers, file.name);
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    alert('Please upload a CSV or Excel file.');
+  }
+}
+
+function openModal(data, headers, fname) {
+  rawData = data;
+  detectedHeaders = headers;
+  columnMap = detectColumns(headers);
+  document.getElementById('map-fields').innerHTML = buildMapFields(headers);
+  document.getElementById('map-modal').classList.add('show');
+  window._fname = fname;
+}
+
+function buildMapFields(headers) {
+  const fields = [
+    { key:'item', label:'Item Name / SKU', req:true },
+    { key:'price', label:'Unit Price', req:true },
+    { key:'date', label:'Date / Month', req:true },
+    { key:'supplier', label:'Supplier', req:false },
+    { key:'qty', label:'Quantity', req:false },
+  ];
+  return fields.map(f => {
+    const opts = ['<option value="">— not mapped —</option>',
+      ...headers.map(h => `<option value="${h}" ${columnMap[f.key]===h?'selected':''}>${h}</option>`)
+    ].join('');
+    return `<div class="map-row">
+      <div class="map-label">${f.req?'<span class="req-dot"></span>':''}${f.label}${f.req?' <span style="color:var(--warning);font-size:11px">*</span>':''}</div>
+      <select id="map-${f.key}">${opts}</select>
+    </div>`;
+  }).join('');
+}
+
+function closeModal() { document.getElementById('map-modal').classList.remove('show'); }
+
+function processMapping() {
+  const map = {};
+  for (const f of ['item','price','date','supplier','qty']) {
+    const v = document.getElementById('map-'+f)?.value;
+    if (v) map[f] = v;
+  }
+  if (!map.item || !map.price || !map.date) {
+    alert('Please map Item Name, Unit Price, and Date at minimum.'); return;
+  }
+  columnMap = map;
+  closeModal();
+  analyse();
+}
+
+// ── core analysis ──────────────────────────────────────────────────────────
+function parsePrice(v) {
+  if (v == null || v === '') return null;
+  const n = parseFloat(String(v).replace(/[^0-9.-]/g,''));
+  return isNaN(n) ? null : n;
+}
+
+function parseDate(v) {
+  if (!v) return null;
+  const d = new Date(v);
+  if (!isNaN(d)) return d;
+  // try mm/yyyy or mmm-yyyy
+  const m = String(v).match(/(\w+)[\/\-](\d{4})/);
+  if (m) return new Date(`${m[1]} 1, ${m[2]}`);
+  return null;
+}
+
+function analyse() {
+  // Build item → { month → [prices] } map
+  const itemMap = {};
+  for (const row of rawData) {
+    const name = String(row[columnMap.item] || '').trim();
+    const price = parsePrice(row[columnMap.price]);
+    const date = parseDate(row[columnMap.date]);
+    const supplier = columnMap.supplier ? String(row[columnMap.supplier] || '').trim() : '';
+    if (!name || price == null || !date) continue;
+    const key = name.toLowerCase();
+    if (!itemMap[key]) itemMap[key] = { name, supplier, months: {} };
+    const mkey = date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0');
+    if (!itemMap[key].months[mkey]) itemMap[key].months[mkey] = [];
+    itemMap[key].months[mkey].push(price);
+  }
+
+  // For each item, get last 5 months sorted oldest→latest, avg price per month
+  analysedItems = [];
+  for (const [, item] of Object.entries(itemMap)) {
+    const sorted = Object.entries(item.months)
+      .map(([m, prices]) => ({ month: m, avg: prices.reduce((a,b)=>a+b,0)/prices.length }))
+      .sort((a,b) => a.month.localeCompare(b.month))
+      .slice(-5);
+    if (sorted.length < 2) continue;
+    const oldest = sorted[0].avg;
+    const latest = sorted[sorted.length-1].avg;
+    const minPrice = Math.min(...sorted.map(m => m.avg));
+    const minMonth = sorted.find(m => m.avg === minPrice)?.month || sorted[0].month;
+    const pct = ((latest - minPrice) / minPrice) * 100;
+    analysedItems.push({
+      name: item.name,
+      supplier: item.supplier || 'Unknown',
+      months: sorted,
+      oldest,
+      latest,
+      minPrice,
+      minMonth,
+      pct,
+      severity: getSeverity(Math.abs(pct)),
+    });
+  }
+  analysedItems.sort((a,b) => b.pct - a.pct);
+  showDashboard();
+}
+
+function showDashboard() {
+  document.getElementById('upload-section').style.display = 'none';
+  document.getElementById('dashboard').classList.add('show');
+  document.getElementById('new-upload-btn').style.display = 'inline-block';
+
+  const total = analysedItems.length;
+  const hiked = analysedItems.filter(i => i.pct > 5).length;
+  const critical = analysedItems.filter(i => i.severity === 'critical').length;
+  const avgHike = analysedItems.filter(i=>i.pct>0).reduce((a,b)=>a+b.pct,0) / (analysedItems.filter(i=>i.pct>0).length || 1);
+  const maxHike = analysedItems.length ? Math.max(...analysedItems.map(i=>i.pct)) : 0;
+
+  document.getElementById('file-meta').textContent =
+    `${window._fname || 'Uploaded file'} · ${rawData.length} rows · ${total} unique items analysed`;
+
+  document.getElementById('stats-grid').innerHTML = [
+    { label:'Total items', value: total, cls:'', sub:'in purchase register' },
+    { label:'Price hiked items', value: hiked, cls:'warning', sub:'above 5% threshold' },
+    { label:'Critical hikes', value: critical, cls:'danger', sub:'above 20% threshold' },
+    { label:'Avg hike', value: avgHike.toFixed(1)+'%', cls: avgHike>10?'danger':'warning', sub:'across hiked items' },
+    { label:'Max hike', value: maxHike.toFixed(1)+'%', cls:'danger', sub: analysedItems[0]?.name || '' },
+  ].map(s => `<div class="stat-card">
+    <div class="stat-label">${s.label}</div>
+    <div class="stat-value ${s.cls}">${s.value}</div>
+    <div class="stat-sub">${s.sub}</div>
+  </div>`).join('');
+
+  renderTable();
+  renderCharts();
+  fetchAI();
+}
+
+// ── table ──────────────────────────────────────────────────────────────────
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  expandedRow = null;
+  applyFilters();
+}
+
+function applyFilters() {
+  const search = document.getElementById('search-box').value.toLowerCase();
+  const filtered = analysedItems.filter(i => {
+    const matchFilter = currentFilter === 'all' || i.severity === currentFilter;
+    const matchSearch = !search || i.name.toLowerCase().includes(search) || i.supplier.toLowerCase().includes(search);
+    return matchFilter && matchSearch;
+  });
+  const sorted = [...filtered].sort((a,b) => {
+    const va = a[sortKey] ?? (typeof a[sortKey]==='string'?'':'');
+    const vb = b[sortKey] ?? (typeof b[sortKey]==='string'?'':'');
+    return sortDir * (va > vb ? 1 : va < vb ? -1 : 0);
+  });
+  renderRows(sorted);
+}
+
+function sortBy(key) {
+  if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = -1; }
+  applyFilters();
+}
+
+function sparkHTML(months, severity) {
+  const prices = months.map(m=>m.avg);
+  const max = Math.max(...prices);
+  const min = Math.min(...prices);
+  const range = max - min || 1;
+  return prices.map((p,i) => {
+    const h = Math.max(4, Math.round(((p-min)/range)*26));
+    const isLast = i === prices.length-1;
+    let color = 'var(--border2)';
+    if (isLast) color = severity==='critical'?'#ef4444':severity==='high'?'#f59e0b':'#10b981';
+    return `<div class="spark-b" style="height:${h}px;background:${color}"></div>`;
+  }).join('');
+}
+
+function renderRows(items) {
+  const tbody = document.getElementById('results-body');
+  tbody.innerHTML = '';
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No items match your filter.</td></tr>';
+    return;
+  }
+  items.forEach((item, idx) => {
+    const isOpen = expandedRow === idx;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td title="${item.name}" style="max-width:180px">${item.name}</td>
+      <td style="color:var(--muted)">${item.supplier}</td>
+      <td style="color:var(--text);font-weight:600;font-size:14px">${fmtNum(item.latest)}</td>
+      <td>
+        <div style="color:var(--success);font-weight:500">${fmtNum(item.minPrice)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">${item.minMonth}</div>
+      </td>
+      <td>
+        <div style="display:inline-flex;align-items:center;gap:6px;background:${item.pct>=20?'rgba(239,68,68,0.12)':item.pct>=10?'rgba(245,158,11,0.12)':item.pct>=5?'rgba(253,230,138,0.08)':'rgba(16,185,129,0.1)'};border-radius:8px;padding:4px 10px;">
+          <span style="font-size:16px;font-weight:700;color:${item.pct>=20?'var(--danger)':item.pct>=10?'var(--warning)':item.pct>=5?'#fde68a':'var(--success)'}">${fmtPct(item.pct)}</span>
+        </div>
+      </td>
+      <td><div class="spark">${sparkHTML(item.months, item.severity)}</div></td>
+      <td><span class="badge ${item.severity}">${item.severity.charAt(0).toUpperCase()+item.severity.slice(1)}</span></td>
+    `;
+    tr.onclick = () => { expandedRow = isOpen ? null : idx; applyFilters(); };
+    tbody.appendChild(tr);
+
+    if (isOpen) {
+      const exp = document.createElement('tr');
+      exp.className = 'expand-row';
+      exp.innerHTML = `<td colspan="7">
+        <div class="expand-inner">
+          <div class="month-table">
+            ${item.months.map((m,i) => {
+              const isMin = m.avg === item.minPrice;
+              const isLatest = i === item.months.length-1;
+              return `<div class="month-col">
+                <div class="month-head">${m.month}${isMin?' 🔻':isLatest?' 🔺':''}</div>
+                <div class="month-val ${isLatest?'latest':isMin?'oldest':''}">${fmtNum(m.avg)}</div>
+              </div>`;
+            }).join('')}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;min-width:220px;">
+            <div style="font-size:12px;color:var(--muted)">Old price — min (${item.minMonth}): <span style="color:var(--success);font-weight:600">${fmtNum(item.minPrice)}</span></div>
+            <div style="font-size:12px;color:var(--muted)">Latest price (${item.months[item.months.length-1].month}): <span style="color:var(--danger);font-weight:600">${fmtNum(item.latest)}</span></div>
+            <div style="font-size:14px;font-weight:700;color:${item.pct>=10?'var(--danger)':'var(--warning)'};margin-top:2px">Hike: ${fmtPct(item.pct)}</div>
+            <button class="ai-chip" style="margin-top:4px;text-align:left" onclick="event.stopPropagation();askAboutItem('${item.name.replace(/'/g,"\\'")}',${item.pct.toFixed(1)},'${item.supplier}')">Ask Copilot about this item &#8599;</button>
+          </div>
+        </div>
+      </td>`;
+      tbody.appendChild(exp);
+    }
+  });
+}
+
+function renderTable() { applyFilters(); }
+
+// ── charts ─────────────────────────────────────────────────────────────────
+function renderCharts() {
+  const top = [...analysedItems].sort((a,b)=>b.pct-a.pct).slice(0,8);
+  if (barChart) barChart.destroy();
+  barChart = new Chart(document.getElementById('chart-bar'), {
+    type:'bar',
+    data: {
+      labels: top.map(i => i.name.length>18 ? i.name.slice(0,16)+'…' : i.name),
+      datasets:[{ data: top.map(i=>+i.pct.toFixed(1)),
+        backgroundColor: top.map(i => i.severity==='critical'?'rgba(239,68,68,0.7)':i.severity==='high'?'rgba(245,158,11,0.7)':i.severity==='moderate'?'rgba(253,230,138,0.6)':'rgba(16,185,129,0.5)'),
+        borderRadius:4, borderSkipped:false }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => fmtPct(c.raw) } } },
+      scales:{ x:{ ticks:{color:'#8896b3',font:{size:10}}, grid:{color:'rgba(255,255,255,0.04)'} }, y:{ ticks:{color:'#8896b3',font:{size:10}, callback: v=>v+'%'}, grid:{color:'rgba(255,255,255,0.04)'} } } }
+  });
+
+  const counts = { critical:0, high:0, moderate:0, stable:0 };
+  analysedItems.forEach(i => counts[i.severity]++);
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(document.getElementById('chart-pie'), {
+    type:'doughnut',
+    data: {
+      labels:['Critical (>20%)','High (10–20%)','Moderate (5–10%)','Stable (<5%)'],
+      datasets:[{ data:[counts.critical,counts.high,counts.moderate,counts.stable],
+        backgroundColor:['rgba(239,68,68,0.8)','rgba(245,158,11,0.8)','rgba(253,230,138,0.7)','rgba(16,185,129,0.7)'],
+        borderColor:'var(--surface)', borderWidth:3 }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{color:'#8896b3',font:{size:11},padding:12} } }, cutout:'62%' }
+  });
+}
+
+// ── AI / Claude API ────────────────────────────────────────────────────────
+async function fetchAI(prompt) {
+  const spinner = document.getElementById('ai-spinner');
+  const content = document.getElementById('ai-content');
+  spinner.style.display = 'inline-block';
+  content.className = 'ai-content loading';
+  content.textContent = 'Copilot is thinking...';
+  document.getElementById('ai-chips').innerHTML = '';
+
+  const top5 = [...analysedItems].sort((a,b)=>b.pct-a.pct).slice(0,5);
+  const summary = top5.map(i=>`${i.name} (${i.supplier}): ${fmtPct(i.pct)} hike, from ${fmtNum(i.oldest)} to ${fmtNum(i.latest)}`).join('\n');
+  const counts = { critical:0, high:0, moderate:0, stable:0 };
+  analysedItems.forEach(i=>counts[i.severity]++);
+
+  const systemPrompt = `You are a smart procurement analyst AI. The user has uploaded a purchase register. Analyse the price hike data and give sharp, actionable insights. Be concise, specific, and business-focused. Use bullet points. Max 4 bullets.`;
+  const userMsg = prompt || `Here is a summary of price hike analysis from a purchase register with ${analysedItems.length} unique items:
+- Critical (>20%): ${counts.critical} items
+- High (10-20%): ${counts.high} items  
+- Moderate (5-10%): ${counts.moderate} items
+- Stable (<5%): ${counts.stable} items
+
+Top 5 hikes:
+${summary}
+
+Give me: key risks, which supplier to investigate first, and 2 immediate actions to take.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        system: systemPrompt,
+        messages:[{ role:'user', content: userMsg }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.map(b=>b.text||'').join('') || 'No response.';
+    content.className = 'ai-content';
+    content.innerHTML = text.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>');
+    renderChips();
+  } catch(e) {
+    content.className = 'ai-content';
+    content.innerHTML = buildFallbackInsights();
+    renderChips();
+  }
+  spinner.style.display = 'none';
+}
+
+function buildFallbackInsights() {
+  const top = [...analysedItems].sort((a,b)=>b.pct-a.pct);
+  const critical = top.filter(i=>i.severity==='critical');
+  const suppliers = {};
+  top.forEach(i=>{ if (!suppliers[i.supplier]) suppliers[i.supplier]=0; if(i.pct>5) suppliers[i.supplier]++; });
+  const topSupplier = Object.entries(suppliers).sort((a,b)=>b[1]-a[1])[0];
+  return [
+    critical.length ? `• <strong>Immediate attention needed:</strong> ${critical.length} item(s) with >20% hike — ${critical.slice(0,2).map(i=>i.name).join(', ')}.` : '',
+    topSupplier ? `• <strong>Investigate supplier:</strong> ${topSupplier[0]} has the most items with price hikes (${topSupplier[1]} items).` : '',
+    top[0] ? `• <strong>Highest hike:</strong> ${top[0].name} at ${fmtPct(top[0].pct)} — consider alternative vendors or renegotiate.` : '',
+    `• <strong>Action:</strong> Request price justification letters from flagged suppliers and compare with market index.`
+  ].filter(Boolean).join('<br><br>');
+}
+
+function renderChips() {
+  document.getElementById('ai-chips').innerHTML = [
+    { label:'Which suppliers to renegotiate?', q:'Based on the price hike data, which suppliers should I renegotiate with first and what leverage do I have?' },
+    { label:'Suggest alternatives', q:'For the items with critical price hikes, suggest what alternative actions the procurement team can take.' },
+    { label:'Draft email to supplier', q:'Draft a professional email to send to the supplier with the highest price hike asking for justification and negotiation.' },
+  ].map(c=>`<button class="ai-chip" onclick="askCopilot('${c.q.replace(/'/g,"\\'")}')"> ${c.label}</button>`).join('');
+}
+
+function askCopilot(q) { fetchAI(q); }
+function askAboutItem(name, pct, supplier) {
+  fetchAI(`The item "${name}" from supplier "${supplier}" has had a ${pct}% price hike over the last 5 months. What should the procurement team do? Give specific negotiation tactics and alternatives.`);
+  document.getElementById('ai-panel')?.scrollIntoView({ behavior:'smooth' });
+}
+
+// ── sample data ────────────────────────────────────────────────────────────
+function loadSampleData() {
+  const months = ['2023-11','2023-12','2024-01','2024-02','2024-03'];
+  const items = [
+    { name:'Basmati Rice 25kg', supplier:'Agarwal Grains', prices:[900,950,1000,1080,1240] },
+    { name:'Sunflower Oil 15L', supplier:'Kiran Oils', prices:[1200,1280,1320,1480,1904] },
+    { name:'Wheat Flour 50kg', supplier:'Agarwal Grains', prices:[1350,1380,1440,1520,1650] },
+    { name:'Refined Oil 15L', supplier:'Kiran Oils', prices:[1380,1420,1500,1600,1890] },
+    { name:'Sugar 50kg', supplier:'Sweetex Ltd', prices:[1800,1820,1850,1870,1900] },
+    { name:'Salt 25kg', supplier:'Sweetex Ltd', prices:[280,280,285,285,290] },
+    { name:'Packaging Cartons 50pk', supplier:'PrintPack Ltd', prices:[760,800,830,880,1092] },
+    { name:'Corrugated Sheets 100pk', supplier:'PrintPack Ltd', prices:[1050,1100,1150,1200,1392] },
+    { name:'Cardamom 1kg', supplier:'Spice World', prices:[1200,1250,1300,1450,1680] },
+    { name:'Black Pepper 1kg', supplier:'Spice World', prices:[800,820,850,900,935] },
+    { name:'Turmeric 5kg', supplier:'Spice World', prices:[350,360,370,380,392] },
+    { name:'Mustard Oil 10L', supplier:'Kiran Oils', prices:[950,970,990,1020,1050] },
+  ];
+  const rows = [];
+  items.forEach(item => {
+    months.forEach((m, i) => {
+      rows.push({ 'Item Name': item.name, 'Supplier': item.supplier, 'Unit Price': item.prices[i], 'Date': m + '-01', 'Quantity': Math.floor(Math.random()*50)+10 });
+    });
+  });
+  rawData = rows;
+  detectedHeaders = Object.keys(rows[0]);
+  columnMap = { item:'Item Name', price:'Unit Price', date:'Date', supplier:'Supplier', qty:'Quantity' };
+  window._fname = 'sample-purchase-register.csv';
+  analyse();
+}
+
+function resetApp() {
+  document.getElementById('upload-section').style.display = 'block';
+  document.getElementById('dashboard').classList.remove('show');
+  document.getElementById('new-upload-btn').style.display = 'none';
+  document.getElementById('file-input').value = '';
+  rawData = []; analysedItems = []; expandedRow = null;
+  if(barChart){barChart.destroy();barChart=null;}
+  if(pieChart){pieChart.destroy();pieChart=null;}
+}
+</script>
+</body>
+</html>
